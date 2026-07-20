@@ -1,7 +1,7 @@
 {
   "name": "sabakobo",
   "productName": "SabaKobo",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "鯖工房 — Minecraftサーバーの作成・起動・管理デスクトップアプリ",
   "main": "src/main.js",
   "author": "yuyu",

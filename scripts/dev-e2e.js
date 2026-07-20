@@ -94,7 +94,7 @@ function javaCount() {
   check('作成成功', created, v => v && v.ok === true);
   if (!created.ok) { console.log('  error:', created.error); process.exit(1); }
   const id = created.server.id;
-  check('jar/loaderVersionが記録された', created.server, v => v.loader === loader && (v.jar || v.loader === 'forge'));
+  check('jar/loaderVersionが記録された', created.server, v => v.loader === loader && (v.jar || v.loader === 'forge' || v.loader === 'neoforge'));
 
   /* ---- 2. 起動 → Done ---- */
   const started = await evaluate(`saba.start('${id}')`);

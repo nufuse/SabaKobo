@@ -31,17 +31,17 @@ async function fetchJSON(url, opts = {}) {
 }
 
 /**
- * downloadFile(url, dest, { sha256, sha1, onProgress, signal })
- * sha256/sha1 のどちらか指定があれば検証し、不一致なら失敗させる。
+ * downloadFile(url, dest, { sha256, sha1, sha512, onProgress, signal })
+ * sha256/sha1/sha512 のどれか指定があれば検証し、不一致なら失敗させる。
  */
 async function downloadFile(url, dest, opts = {}) {
-  const { sha256, sha1, onProgress, signal } = opts;
+  const { sha256, sha1, sha512, onProgress, signal } = opts;
   const r = await net.fetch(url, { headers: { 'User-Agent': UA }, signal });
   if (!r.ok) throw new Error(`HTTP ${r.status}: ${url}`);
 
   const total = Number(r.headers.get('content-length')) || 0;
   const tmp = dest + '.download';
-  const hash = sha256 ? crypto.createHash('sha256') : (sha1 ? crypto.createHash('sha1') : null);
+  const hash = sha256 ? crypto.createHash('sha256') : (sha1 ? crypto.createHash('sha1') : (sha512 ? crypto.createHash('sha512') : null));
   const out = fs.createWriteStream(tmp);
   const reader = r.body.getReader();
   let got = 0;
@@ -59,7 +59,7 @@ async function downloadFile(url, dest, opts = {}) {
 
     if (hash) {
       const hex = hash.digest('hex');
-      const want = (sha256 || sha1).toLowerCase();
+      const want = (sha256 || sha1 || sha512).toLowerCase();
       if (hex !== want) throw new Error(`チェックサム不一致(ダウンロード破損の可能性): ${hex} ≠ ${want}`);
     }
     fs.renameSync(tmp, dest);

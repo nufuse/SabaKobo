@@ -2,6 +2,7 @@
  * create/forge.js — Forge鯖の作成(promotions_slim.json → インストーラ実行)
  * 唯一「鯖ができる前にJDKが要る」経路。インストーラは対象MCに合うJDKで走らせる
  * (1.20.1なら17。21で走らせない)。数分かかるので標準出力をコンソール枠へ流す。
+ * loaderVersion指定時(modpack導入でmrpackがピン留めしている場合)はpromotions照会をせずそれを使う。
  */
 'use strict';
 
@@ -38,9 +39,12 @@ async function listVersions() {
   return list;
 }
 
-async function create({ mc, dir, javaExe, onProgress, onLog, signal }) {
-  const j = await fetchJSON(PROMOS, { signal });
-  const forgeVer = j.promos[`${mc}-recommended`] || j.promos[`${mc}-latest`];
+async function create({ mc, dir, javaExe, loaderVersion, onProgress, onLog, signal }) {
+  let forgeVer = loaderVersion;
+  if (!forgeVer) {
+    const j = await fetchJSON(PROMOS, { signal });
+    forgeVer = j.promos[`${mc}-recommended`] || j.promos[`${mc}-latest`];
+  }
   if (!forgeVer) throw new Error(`Forge ${mc} 向けのバージョンが見つかりません`);
 
   const full = `${mc}-${forgeVer}`;

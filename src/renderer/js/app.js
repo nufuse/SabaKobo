@@ -45,6 +45,7 @@ const App = {
     Props.wire();
     Remove.wire();
     Mods.wire();
+    Pack.wire();
   },
 
   findServer(id) {

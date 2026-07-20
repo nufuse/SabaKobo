@@ -3,6 +3,8 @@
  * /server/jar エンドポイントが自己起動ランチャー(約175KB)を返すので、
  * インストーラのjava実行なしで完結する。チェックサム非公開のためzipマジックで最低限の検証。
  * 初回起動時にライブラリ群をネットから取得する(UI側で明記)。
+ * loaderVersion指定時(modpack導入でmrpackがピン留めしている場合)はそれを使い、
+ * 無指定時(通常のウィザード作成)は従来どおり最新安定版を選ぶ。
  */
 'use strict';
 
@@ -21,10 +23,13 @@ async function listVersions() {
   return list;
 }
 
-async function create({ mc, dir, onProgress, signal }) {
-  const loaders = await fetchJSON(`${META}/versions/loader`);
+async function create({ mc, dir, loaderVersion, onProgress, signal }) {
   const installers = await fetchJSON(`${META}/versions/installer`);
-  const loader = (loaders.find(l => l.stable) || loaders[0]).version;
+  let loader = loaderVersion;
+  if (!loader) {
+    const loaders = await fetchJSON(`${META}/versions/loader`);
+    loader = (loaders.find(l => l.stable) || loaders[0]).version;
+  }
   const inst = (installers.find(i => i.stable) || installers[0]).version;
 
   const jar = 'fabric-server-launch.jar';

@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self'">
   <title>鯖工房</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -10,6 +11,7 @@
     <h1>🐟 鯖工房 <span id="app-version"></span></h1>
     <div class="header-actions">
       <button id="btn-new" class="btn btn-primary">➕ 新しい鯖</button>
+      <button id="btn-pack" class="btn">📦 modpack</button>
     </div>
   </header>
 
@@ -81,6 +83,8 @@
               <span><b>Fabric</b><small>Mod鯖(軽量系)</small></span></label>
             <label class="loader-card"><input type="radio" name="wz-loader" value="forge">
               <span><b>Forge</b><small>Mod鯖(老舗)</small></span></label>
+            <label class="loader-card"><input type="radio" name="wz-loader" value="neoforge">
+              <span><b>NeoForge</b><small>Forgeの後継。新しめのmodpackの主流</small></span></label>
             <label class="loader-card"><input type="radio" name="wz-loader" value="vanilla">
               <span><b>Vanilla</b><small>公式そのまま</small></span></label>
           </div>
@@ -208,6 +212,193 @@
     </div>
   </div>
 
+  <!-- modpack導入モーダル -->
+  <div id="pack-overlay" hidden>
+    <div id="pack-modal">
+      <h2>📦 modpackを導入</h2>
+
+      <!-- 入口画面: Modrinth検索/ファイルの2択 -->
+      <div id="pk-entry">
+        <div id="pk-tabs">
+          <button type="button" class="pk-tab pk-tab-active" id="pk-tab-search">🔎 Modrinthを検索</button>
+          <button type="button" class="pk-tab" id="pk-tab-file">📁 ファイルから</button>
+        </div>
+
+        <div id="pk-pane-search">
+          <form id="pk-search-form">
+            <div id="pk-search-row">
+              <input id="pk-search-box" placeholder="modpack名で検索…(空なら人気順)">
+              <button type="submit" class="btn btn-primary" id="pk-search-btn">検索</button>
+            </div>
+          </form>
+          <div id="pk-results"></div>
+          <p id="pk-results-empty" class="muted" hidden>見つかりませんでした</p>
+          <button type="button" class="btn" id="pk-more" hidden>もっと見る</button>
+        </div>
+
+        <div id="pk-pane-file" hidden>
+          <button type="button" class="btn btn-primary" id="pk-pick-btn">📁 .mrpackを選ぶ</button>
+          <div id="pk-dropzone">ここに.mrpackファイルをドラッグ&ドロップ</div>
+          <p id="pk-file-error" class="error" hidden></p>
+        </div>
+
+        <div class="wz-buttons">
+          <button class="btn" id="pk-close">閉じる</button>
+        </div>
+      </div>
+
+      <!-- バージョン選択画面(検索経由のみ) -->
+      <div id="pk-versions" hidden>
+        <button type="button" class="btn" id="pk-versions-back">← 戻る</button>
+        <h3 id="pk-versions-title"></h3>
+        <div id="pk-versions-list"></div>
+      </div>
+
+      <!-- 設定画面(両経路が合流) -->
+      <div id="pk-config" hidden>
+        <div class="wz-row">
+          <label class="wz-label" for="pk-name">パック名</label>
+          <input id="pk-name">
+        </div>
+
+        <div class="wz-row">
+          <label class="wz-label">構成</label>
+          <span class="badge" id="pk-mc-badge"></span>
+          <span class="badge" id="pk-loader-badge"></span>
+          <span class="muted" id="pk-file-info" hidden></span>
+        </div>
+
+        <div class="wz-row">
+          <label class="wz-label">作成先</label>
+          <code id="pk-dir">—</code>
+          <button type="button" class="btn" id="pk-dir-btn">親フォルダを変更</button>
+        </div>
+
+        <div class="wz-row">
+          <label class="wz-label">メモリ</label>
+          <div class="ram-sliders">
+            <div class="ram-slider-row">
+              <span class="ram-name">最低 -Xms</span>
+              <input type="range" id="pk-xms" min="1" max="16" step="1" value="2">
+              <span class="ram-val" id="pk-xms-val">2 GB</span>
+            </div>
+            <div class="ram-slider-row">
+              <span class="ram-name">上限 -Xmx</span>
+              <input type="range" id="pk-xmx" min="1" max="16" step="1" value="6">
+              <span class="ram-val" id="pk-xmx-val">6 GB</span>
+            </div>
+            <span class="muted" id="pk-ram-hint"></span>
+          </div>
+        </div>
+
+        <div class="wz-row">
+          <label class="wz-label" for="pk-port">ポート</label>
+          <input id="pk-port" type="number" min="1" max="65535" style="width:90px">
+        </div>
+
+        <div class="wz-row">
+          <label class="eula-row">
+            <input type="checkbox" id="pk-eula">
+            <span><a href="#" id="pk-eula-link">Minecraft EULA</a> に同意する(サーバー運用に必須)</span>
+          </label>
+        </div>
+
+        <p id="pk-config-error" class="error" hidden></p>
+
+        <div class="wz-buttons">
+          <button class="btn btn-primary" id="pk-install" disabled>導入</button>
+          <button class="btn" id="pk-config-close">閉じる</button>
+        </div>
+      </div>
+
+      <!-- 確認画面(zip=CurseForgeサーバーパック経由。自動判別を全項目手直しできる) -->
+      <div id="pk-confirm" hidden>
+        <p class="muted">フォルダの中身から自動で見積もりました。違っていれば直してから取り込んでください。</p>
+
+        <div class="wz-row">
+          <label class="wz-label" for="pkc-loader">ローダー</label>
+          <select id="pkc-loader">
+            <option value="">不明</option>
+            <option value="paper">Paper</option>
+            <option value="fabric">Fabric</option>
+            <option value="forge">Forge</option>
+            <option value="neoforge">NeoForge</option>
+            <option value="vanilla">Vanilla</option>
+          </select>
+        </div>
+
+        <div class="wz-row">
+          <label class="wz-label" for="pkc-mc">MCバージョン</label>
+          <input id="pkc-mc" placeholder="例: 1.21.11">
+        </div>
+
+        <div class="wz-row">
+          <label class="wz-label" for="pkc-loaderver">ローダー版</label>
+          <input id="pkc-loaderver" placeholder="空なら最新">
+        </div>
+
+        <div class="wz-row">
+          <label class="wz-label" for="pkc-name">鯖名</label>
+          <input id="pkc-name">
+        </div>
+
+        <div class="wz-row">
+          <label class="wz-label">作成先</label>
+          <code id="pkc-dir">—</code>
+          <button type="button" class="btn" id="pkc-dir-btn">親フォルダを変更</button>
+        </div>
+
+        <div class="wz-row">
+          <label class="wz-label">メモリ</label>
+          <div class="ram-sliders">
+            <div class="ram-slider-row">
+              <span class="ram-name">最低 -Xms</span>
+              <input type="range" id="pkc-xms" min="1" max="16" step="1" value="2">
+              <span class="ram-val" id="pkc-xms-val">2 GB</span>
+            </div>
+            <div class="ram-slider-row">
+              <span class="ram-name">上限 -Xmx</span>
+              <input type="range" id="pkc-xmx" min="1" max="16" step="1" value="6">
+              <span class="ram-val" id="pkc-xmx-val">6 GB</span>
+            </div>
+            <span class="muted" id="pkc-ram-hint"></span>
+          </div>
+        </div>
+
+        <div class="wz-row">
+          <label class="wz-label" for="pkc-port">ポート</label>
+          <input id="pkc-port" type="number" min="1" max="65535" style="width:90px">
+        </div>
+
+        <div class="wz-row">
+          <label class="eula-row">
+            <input type="checkbox" id="pkc-eula">
+            <span><a href="#" id="pkc-eula-link">Minecraft EULA</a> に同意する(サーバー運用に必須)</span>
+          </label>
+        </div>
+
+        <p id="pk-confirm-error" class="error" hidden></p>
+
+        <div class="wz-buttons">
+          <button class="btn btn-primary" id="pkc-install" disabled>取り込む</button>
+          <button class="btn" id="pkc-close">閉じる</button>
+        </div>
+      </div>
+
+      <!-- 進捗画面 -->
+      <div id="pk-progress" hidden>
+        <p id="pk-phase">準備中…</p>
+        <div class="bar-outer"><div class="bar-inner" id="pk-bar"></div></div>
+        <pre id="pk-log"></pre>
+        <p id="pk-error" class="error" hidden></p>
+        <div class="wz-buttons">
+          <button class="btn" id="pk-abort">中止</button>
+          <button class="btn" id="pk-progress-close" hidden>閉じる</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 削除確認モーダル -->
   <div id="remove-overlay" hidden>
     <div id="remove-modal">
@@ -232,6 +423,7 @@
   <script src="js/players.js"></script>
   <script src="js/props.js"></script>
   <script src="js/mods.js"></script>
-  <script>App.boot();</script>
+  <script src="js/pack.js"></script>
+  <script src="js/boot.js"></script>
 </body>
 </html>

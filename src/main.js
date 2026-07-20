@@ -16,10 +16,15 @@ const ports = require('./ports');
 const properties = require('./properties');
 const mods = require('./mods');
 const runner = require('./runner');
+const download = require('./download');
+const modrinth = require('./modrinth');
+const modpack = require('./modpack');
+const detect = require('./detect');
 const creators = {
   paper: require('./create/paper'),
   fabric: require('./create/fabric'),
   forge: require('./create/forge'),
+  neoforge: require('./create/neoforge'),
   vanilla: require('./create/vanilla')
 };
 
@@ -28,6 +33,17 @@ let javas = [];       /* 起動時に検出したJDK一覧 */
 let data = null;      /* レジストリ(sabakobo-data.json) */
 let allowClose = false;
 let createAbort = null;
+let packAbort = null;
+const packAnalyses = new Map(); /* analysisId → analyzeMrpackの戻り値(workDir含む。レンダラーにはIDだけ渡す) */
+
+/* 保持中の全analysisのworkDir(一時展開フォルダ)を削除してMapを空にする。
+   導入せずにモーダルを閉じる/次の解析を始める/アプリを終了する、のどれでも呼ぶ(取りこぼし厳禁) */
+function discardPackAnalyses() {
+  for (const analysis of packAnalyses.values()) {
+    try { fs.rmSync(analysis.workDir, { recursive: true, force: true }); } catch { /* 消せなくても続行 */ }
+  }
+  packAnalyses.clear();
+}
 
 /* ── パス ─────────────────────────── */
 const dataFile = () => path.join(app.getPath('userData'), 'sabakobo-data.json');
@@ -94,6 +110,14 @@ async function effectiveRange(mc, loader, signal) {
   range.label = range.max == null ? `Java ${range.min}以上`
     : (range.max === range.min ? `Java ${range.min}(限定)` : `Java ${range.min}〜${range.max}`);
   return range;
+}
+
+/* サーバーパックzipの見積もり(detect.js)に自信が無い項目があるか。
+   確認画面を出すこと自体は常に行うが、UIで注意を促す判断材料として使う */
+function packNeedsConfirm(est) {
+  if (!est.loader || !est.mcVersion) return true;
+  if (['fabric', 'forge', 'neoforge'].includes(est.loader) && !est.loaderVersion) return true;
+  return false;
 }
 
 /* ── IPC: 初期化・Java・ポート ─────────── */
@@ -289,12 +313,13 @@ ipcMain.handle('create:run', async (e, opts) => {
     if (logBuf.length) progress('installer', { lines: logBuf.splice(0) });
   }, 150);
 
+  let created = false; /* 失敗/中止時に作成先dirを掃除するかどうかの目印(成功時はfalseのまま=残す) */
   try {
     /* 要求Javaを確定(公式データ優先)して鯖に記録する。
-       Forgeだけは鯖ができる前にJDKが要るので、ダウンロード前に確かめて早めに失敗させる */
+       Forge/NeoForgeだけは鯖ができる前にJDKが要るので、ダウンロード前に確かめて早めに失敗させる */
     const javaReq = await effectiveRange(mc, loader, createAbort.signal);
     let javaExe = null;
-    if (loader === 'forge') {
+    if (loader === 'forge' || loader === 'neoforge') {
       const jr = java.pickByRange(javaReq, javas);
       if (!jr.ok) return { ok: false, error: jr.error };
       javaExe = jr.exe;
@@ -334,16 +359,247 @@ ipcMain.handle('create:run', async (e, opts) => {
     };
     data.servers.push(server);
     saveData();
+    created = true;
     return { ok: true, server };
   } catch (err) {
     return { ok: false, error: err.message };
   } finally {
     clearInterval(logTimer);
     createAbort = null;
+    /* 失敗/中止時は作成先dirを掃除する(開始時点で空/新規だと確認済みなので削除して安全。成功時は残す) */
+    if (!created) { try { fs.rmSync(dir, { recursive: true, force: true }); } catch { } }
   }
 });
 
 ipcMain.on('create:cancel', () => { if (createAbort) createAbort.abort(); });
+
+/* ── IPC: modpack導入(v0.4) ─────────── */
+ipcMain.handle('pack:search', async (e, query, offset) => {
+  try {
+    return { ok: true, ...(await modrinth.searchModpacks(query, { offset })) };
+  } catch (err) {
+    return { ok: false, error: `検索に失敗しました: ${err.message}` };
+  }
+});
+
+ipcMain.handle('pack:versions', async (e, id) => {
+  try {
+    return { ok: true, versions: await modrinth.versions(id) };
+  } catch (err) {
+    return { ok: false, error: `バージョン一覧の取得に失敗しました: ${err.message}` };
+  }
+});
+
+/* mrpack/サーバーパックzipを解析するだけ(まだ何も作らない)。
+   workDirはレンダラーへ渡さず、analysisIdに紐付けてmain側で保持する */
+ipcMain.handle('pack:analyze', async (e, filePath) => {
+  try {
+    discardPackAnalyses(); /* 常に最新1件だけ保持。前回分が導入されずに残っていればここで掃除する */
+    const analysisId = crypto.randomUUID();
+    const ext = path.extname(filePath).toLowerCase();
+
+    if (ext === '.zip') {
+      const analysis = await modpack.analyzeZip(filePath);
+      packAnalyses.set(analysisId, analysis);
+      if (analysis.kind === 'mrpack') {
+        /* .mrpackをzipに改名して配る例があるため、この場合は既存のmrpack設定画面へそのまま合流させる */
+        const { workDir, ...pub } = analysis;
+        return { ok: true, analysisId, ...pub };
+      }
+      return {
+        ok: true, analysisId, kind: 'serverpack',
+        estimate: analysis.estimate,
+        hasLoaderFiles: analysis.hasLoaderFiles,
+        needsConfirm: packNeedsConfirm(analysis.estimate)
+      };
+    }
+
+    const plan = await modpack.analyzeMrpack(filePath);
+    packAnalyses.set(analysisId, plan);
+    const { workDir, ...pub } = plan;
+    return { ok: true, analysisId, kind: 'mrpack', ...pub };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('pack:install', async (e, opts) => {
+  const { analysisId, download: dl, name, xms, xmx, port, eula, loaderOverride } = opts || {};
+
+  /* 検証(create:runと同じ流儀) */
+  if (eula !== true) return { ok: false, error: 'Minecraft EULAへの同意が必要です' };
+  if (!name || /[\\/:*?"<>|]/.test(name)) return { ok: false, error: '名前が空か、使えない文字( \\ / : * ? " < > | )を含んでいます' };
+  if (!analysisId && !dl) return { ok: false, error: 'modpackが指定されていません' };
+  const p = Number(port);
+  if (!Number.isInteger(p) || p < 1 || p > 65535) return { ok: false, error: 'ポート番号が不正です' };
+  if (data.servers.some(s => s.port === p)) return { ok: false, error: `ポート${p}は登録済みの鯖が使っています` };
+  if (!(await ports.probe(p))) return { ok: false, error: `ポート${p}は使用中です` };
+  const xmsN = parseInt(String(xms || '2G'), 10), xmxN = parseInt(String(xmx || '4G'), 10);
+  if (!/^\d+G$/.test(String(xms || '2G')) || !/^\d+G$/.test(String(xmx || '4G')) ||
+      xmsN < 1 || xmxN < 1 || xmxN > 64 || xmsN > xmxN) {
+    return { ok: false, error: 'メモリ指定が不正です(-Xms ≦ -Xmx、単位G)' };
+  }
+
+  const dir = opts.dir || path.join(data.newServerRoot, name);
+  if (fs.existsSync(dir) && fs.readdirSync(dir).length > 0) {
+    return { ok: false, error: `フォルダが空ではありません: ${dir}` };
+  }
+  if (data.servers.some(s => path.resolve(s.dir) === path.resolve(dir))) {
+    return { ok: false, error: 'そのフォルダは既に登録されています' };
+  }
+
+  /* 中止コントローラは最初に作る(mrpackダウンロード段階から中止ボタンを効かせる) */
+  packAbort = new AbortController();
+
+  const progress = (phase, extra) => {
+    if (win && !win.isDestroyed()) win.webContents.send('pack:progress', { phase, ...extra });
+  };
+
+  /* Forge/NeoForgeインストーラの出力は数千行になるため、create:runと同じく150msごとに束ねて送る */
+  let logBuf = [];
+  const logTimer = setInterval(() => {
+    if (logBuf.length) progress('installer', { lines: logBuf.splice(0) });
+  }, 150);
+
+  let mrpackTemp = null;
+  let installed = false; /* 失敗/中止時に作成先dirを掃除するかどうかの目印(成功時はfalseのまま=残す) */
+  try {
+    const analysis = analysisId ? packAnalyses.get(analysisId) : null;
+    if (analysisId) {
+      if (!analysis) return { ok: false, error: '解析結果が見つかりません。もう一度ファイルを選び直してください' };
+      packAnalyses.delete(analysisId);
+    }
+
+    /* ── CurseForgeサーバーパックzip経由: 確認画面で手直しされた値を正とする ── */
+    if (analysis && analysis.kind === 'serverpack') {
+      const loader = (loaderOverride && loaderOverride.loader) || analysis.estimate.loader;
+      const mcVersion = (loaderOverride && loaderOverride.mcVersion) || analysis.estimate.mcVersion;
+
+      /* UIを迂回されても、MCバージョン不明のまま(Java 25要求扱いになり)起動不能鯖が登録されるのを防ぐ */
+      if (!mcVersion) return { ok: false, error: 'MCバージョンが不明です。確認画面で入力してください' };
+      /* 起動手段(jar等)が既にあるなら不明のままでも取り込めるが、無ければローダーを確定させる */
+      if (!loader && !analysis.hasLoaderFiles) return { ok: false, error: 'ローダーが不明です。確認画面で選択してください' };
+
+      const javaReq = await effectiveRange(mcVersion, loader, packAbort.signal);
+
+      /* 起動手段が無く、これからForge/NeoForgeインストーラを走らせる時だけJDKを事前確認する */
+      let javaExe = null;
+      if (!analysis.hasLoaderFiles && (loader === 'forge' || loader === 'neoforge')) {
+        const jr = java.pickByRange(javaReq, javas);
+        if (!jr.ok) return { ok: false, error: jr.error };
+        javaExe = jr.exe;
+      }
+
+      fs.mkdirSync(dir, { recursive: true });
+      const res = await modpack.installZip(analysis, {
+        dir, name, port: p, xms, xmx, javaExe,
+        loaderOverride: { loader, mcVersion, loaderVersion: loaderOverride && loaderOverride.loaderVersion },
+        onProgress: info => progress(info.phase, info),
+        onLog: line => logBuf.push(line),
+        signal: packAbort.signal
+      });
+
+      if (logBuf.length) progress('installer', { lines: logBuf.splice(0) });
+      progress('finish', {});
+      properties.writeEula(dir); /* UIのチェックボックスを通過済み(opts.eula===true) */
+
+      const server = {
+        id: crypto.randomUUID(),
+        name, dir, loader, mcVersion,
+        loaderVersion: res.loaderVersion,
+        jar: res.jar,
+        javaPath: null,
+        javaReq,
+        xms: xms || '2G', xmx: xmx || '4G',
+        extraJvmArgs: '', serverArgs: '',
+        consoleCharset: 'utf-8',
+        port: p,
+        incomplete: false,
+        origin: 'modpack',
+        pack: { source: 'curseforge-zip', name },
+        createdAt: new Date().toISOString(),
+        lastStartedAt: null, lastPid: null,
+        favorite: false, notes: ''
+      };
+      data.servers.push(server);
+      saveData();
+      installed = true;
+      return { ok: true, server };
+    }
+
+    /* ── mrpack経由(ファイル・Modrinth検索・zip内mrpackすべて共通) ── */
+    let plan = analysis;
+    if (!plan) {
+      /* Modrinth検索経由: まず.mrpack本体を一時DLしてから解析する */
+      mrpackTemp = path.join(app.getPath('temp'), `sabakobo-pack-dl-${crypto.randomUUID()}.mrpack`);
+      progress('pack', { got: 0, total: dl.size || 0 });
+      await download.downloadFile(dl.url, mrpackTemp, {
+        sha512: dl.sha512,
+        onProgress: (got, total) => progress('pack', { got, total }),
+        signal: packAbort.signal
+      });
+      plan = await modpack.analyzeMrpack(mrpackTemp, { signal: packAbort.signal });
+    }
+
+    /* 要求Javaを確定(create:runと同じ流儀)。Forge/NeoForgeはJDKが無ければここで即失敗させる */
+    const javaReq = await effectiveRange(plan.mcVersion, plan.loader, packAbort.signal);
+    let javaExe = null;
+    if (plan.loader === 'forge' || plan.loader === 'neoforge') {
+      const jr = java.pickByRange(javaReq, javas);
+      if (!jr.ok) return { ok: false, error: jr.error };
+      javaExe = jr.exe;
+    }
+
+    fs.mkdirSync(dir, { recursive: true });
+    const res = await modpack.installMrpack(plan, {
+      dir, port: p, name, xms, xmx, javaExe,
+      onProgress: info => progress(info.phase, info),
+      onLog: line => logBuf.push(line),
+      signal: packAbort.signal
+    });
+
+    if (logBuf.length) progress('installer', { lines: logBuf.splice(0) });
+    progress('finish', {});
+    properties.writeEula(dir); /* UIのチェックボックスを通過済み(opts.eula===true) */
+
+    const server = {
+      id: crypto.randomUUID(),
+      name, dir, loader: plan.loader,
+      mcVersion: plan.mcVersion,
+      loaderVersion: res.loaderVersion,
+      jar: res.jar,
+      javaPath: null,
+      javaReq,
+      xms: xms || '2G', xmx: xmx || '4G',
+      extraJvmArgs: '', serverArgs: '',
+      consoleCharset: 'utf-8',
+      port: p,
+      incomplete: false,
+      origin: 'modpack',
+      pack: { source: analysisId ? 'file' : 'modrinth', name: plan.name, versionId: dl && dl.versionId },
+      createdAt: new Date().toISOString(),
+      lastStartedAt: null, lastPid: null,
+      favorite: false, notes: ''
+    };
+    data.servers.push(server);
+    saveData();
+    installed = true;
+    return { ok: true, server };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  } finally {
+    clearInterval(logTimer);
+    packAbort = null;
+    if (mrpackTemp) { try { fs.unlinkSync(mrpackTemp); } catch { } }
+    /* 失敗/中止時は作成先dirを掃除する(開始時点で空/新規だと確認済みなので削除して安全。成功時は残す) */
+    if (!installed) { try { fs.rmSync(dir, { recursive: true, force: true }); } catch { } }
+  }
+});
+
+ipcMain.on('pack:cancel', () => { if (packAbort) packAbort.abort(); });
+
+/* 導入せずにモーダルを閉じた等で不要になった解析結果を破棄する(workDirのリーク防止) */
+ipcMain.handle('pack:discard', () => { discardPackAnalyses(); return { ok: true }; });
 
 /* ── IPC: その他 ─────────────────── */
 ipcMain.handle('dialog:pick-folder', async () => {
@@ -357,6 +613,13 @@ ipcMain.handle('dialog:pick-jars', async () => {
   });
   return r.canceled ? [] : r.filePaths;
 });
+ipcMain.handle('dialog:pick-pack', async () => {
+  const r = await dialog.showOpenDialog(win, {
+    properties: ['openFile'],
+    filters: [{ name: 'modpack (*.mrpack, *.zip)', extensions: ['mrpack', 'zip'] }]
+  });
+  return r.canceled ? null : r.filePaths[0];
+});
 ipcMain.on('shell:open-folder', (e, dir) => {
   const s = data.servers.find(x => x.dir === dir);
   if (s) shell.openPath(s.dir); /* 登録済みの鯖フォルダだけ開く */
@@ -369,6 +632,19 @@ ipcMain.on('update:restart', () => autoUpdater.quitAndInstall());
 /* テスト用(CDPテストから純関数を叩く) */
 ipcMain.handle('dev:flatten-paper', (e, obj) => creators.paper.flattenVersions(obj));
 ipcMain.handle('dev:player-line', (e, line) => runner.parsePlayerLine(String(line)));
+ipcMain.handle('dev:detect', (e, dir) => detect.detect(dir));
+
+/* download.jsのチェックサム検証(sha256/sha1/sha512)をレンダラーから叩くためのテスト用フック */
+ipcMain.handle('dev:download', async (e, opts) => {
+  try {
+    const r = await download.downloadFile(opts.url, opts.dest, {
+      sha256: opts.sha256, sha1: opts.sha1, sha512: opts.sha512
+    });
+    return { ok: true, size: r.size };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
 
 /* propertiesエディタの往復テスト: 一時ファイルに書く→update→前後のバイト列を返す */
 ipcMain.handle('dev:props-roundtrip', (e, text, changes) => {
@@ -473,4 +749,5 @@ if (!app.requestSingleInstanceLock()) {
     setupAutoUpdate();
   });
   app.on('window-all-closed', () => app.quit());
+  app.on('will-quit', () => discardPackAnalyses()); /* 保持中のworkDirを残さず終了する */
 }

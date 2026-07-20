@@ -36,6 +36,15 @@ contextBridge.exposeInMainWorld('saba', {
   createRun: (opts) => ipcRenderer.invoke('create:run', opts),
   createCancel: () => ipcRenderer.send('create:cancel'),
 
+  /* modpack導入(v0.4) */
+  packSearch: (query, offset) => ipcRenderer.invoke('pack:search', query, offset),
+  packVersions: (id) => ipcRenderer.invoke('pack:versions', id),
+  packAnalyze: (filePath) => ipcRenderer.invoke('pack:analyze', filePath),
+  packInstall: (opts) => ipcRenderer.invoke('pack:install', opts),
+  packCancel: () => ipcRenderer.send('pack:cancel'),
+  packDiscard: () => ipcRenderer.invoke('pack:discard'),
+  pickPack: () => ipcRenderer.invoke('dialog:pick-pack'),
+
   /* その他 */
   pickFolder: () => ipcRenderer.invoke('dialog:pick-folder'),
   openFolder: (dir) => ipcRenderer.send('shell:open-folder', dir),
@@ -48,6 +57,7 @@ contextBridge.exposeInMainWorld('saba', {
   onPlayers: (cb) => ipcRenderer.on('server:players', (e, p) => cb(p)),
   onDataChanged: (cb) => ipcRenderer.on('data:changed', (e, d) => cb(d)),
   onCreateProgress: (cb) => ipcRenderer.on('create:progress', (e, p) => cb(p)),
+  onPackProgress: (cb) => ipcRenderer.on('pack:progress', (e, p) => cb(p)),
   onUpdateReady: (cb) => ipcRenderer.on('update-ready', (e, v) => cb(v)),
   onModsChanged: (cb) => ipcRenderer.on('mods:changed', (e, p) => cb(p)),
 
@@ -55,5 +65,7 @@ contextBridge.exposeInMainWorld('saba', {
   devFlattenPaper: (obj) => ipcRenderer.invoke('dev:flatten-paper', obj),
   devPlayerLine: (line) => ipcRenderer.invoke('dev:player-line', line),
   devPropsRoundtrip: (text, changes) => ipcRenderer.invoke('dev:props-roundtrip', text, changes),
-  devRegister: (opts) => ipcRenderer.invoke('dev:register', opts)
+  devRegister: (opts) => ipcRenderer.invoke('dev:register', opts),
+  devDownload: (opts) => ipcRenderer.invoke('dev:download', opts),
+  devDetect: (dir) => ipcRenderer.invoke('dev:detect', dir)
 });

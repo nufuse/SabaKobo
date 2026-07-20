@@ -85,6 +85,7 @@ const Wizard = {
       paper: '',
       fabric: '初回起動時にライブラリをネットから取得します',
       forge: 'インストーラを実行します(数分かかることがあります)',
+      neoforge: 'インストーラを実行します(数分かかることがあります)',
       vanilla: ''
     }[Wizard.loader()] || '';
 
@@ -184,7 +185,8 @@ const Wizard = {
         phase.textContent = `ダウンロード中… ${mb(p.got)} MB`;
       }
     } else if (p.phase === 'installer') {
-      phase.textContent = 'Forgeインストーラを実行中…(数分かかることがあります)';
+      const loaderName = Wizard.loader() === 'neoforge' ? 'NeoForge' : 'Forge';
+      phase.textContent = `${loaderName}インストーラを実行中…(数分かかることがあります)`;
       bar.style.width = '100%';
       /* mainから150msごとに束ねて届く。表示は直近150行だけ(全行描画すると凍る) */
       const log = document.querySelector('#wz-log');

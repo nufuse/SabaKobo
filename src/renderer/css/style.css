@@ -3,7 +3,8 @@
 /* display:flexを持つ要素はhidden属性が効かなくなる(CmdKoboで踏んだ罠)ので明示 */
 #wizard-overlay[hidden], #server-view[hidden], #props-overlay[hidden],
 #remove-overlay[hidden], #player-menu[hidden], #console-row[hidden],
-#mods-overlay[hidden] { display: none; }
+#mods-overlay[hidden], #pack-overlay[hidden],
+#pk-pane-file[hidden], #pk-file-info[hidden] { display: none; }
 :root {
   --bg: #f4f1ea;
   --card: #ffffff;
@@ -183,15 +184,15 @@ main { flex: 1; display: flex; flex-direction: column; min-width: 0; padding: 14
 #wz-log:empty { display: none; }
 
 /* ── サーバー設定モーダル ── */
-#props-overlay, #remove-overlay, #mods-overlay {
+#props-overlay, #remove-overlay, #mods-overlay, #pack-overlay {
   position: fixed; inset: 0; background: rgba(40,36,28,.45);
   display: flex; align-items: center; justify-content: center; z-index: 50;
 }
-#props-modal, #remove-modal, #mods-modal {
+#props-modal, #remove-modal, #mods-modal, #pack-modal {
   background: var(--card); border-radius: 14px; padding: 22px 26px;
   width: 640px; max-width: 92vw; max-height: 88vh; overflow-y: auto;
 }
-#props-modal h2, #remove-modal h2, #mods-modal h2 { margin-bottom: 10px; }
+#props-modal h2, #remove-modal h2, #mods-modal h2, #pack-modal h2 { margin-bottom: 10px; }
 #props-note { margin-bottom: 14px; }
 .pr-row { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; flex-wrap: wrap; }
 .pr-label { width: 230px; flex-shrink: 0; font-size: 13.5px; font-weight: bold; }
@@ -236,6 +237,54 @@ main { flex: 1; display: flex; flex-direction: column; min-width: 0; padding: 14
 .rm-choices .btn { text-align: left; padding: 12px 14px; }
 .rm-choices .btn small { display: block; color: var(--muted); font-weight: normal; margin-top: 3px; }
 .rm-danger:hover { border-color: var(--stop); }
+
+/* ── modpack導入モーダル ── */
+#pack-modal h2 { margin-bottom: 16px; }
+#pk-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.pk-tab {
+  flex: 1; font-family: inherit; font-size: 14px; padding: 8px 10px;
+  border: 2px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink); cursor: pointer;
+}
+.pk-tab-active { border-color: var(--accent); background: rgba(42,157,143,.07); font-weight: bold; }
+
+#pk-search-row { display: flex; gap: 8px; margin-bottom: 12px; }
+#pk-search-box { flex: 1; font-family: inherit; font-size: 14px; padding: 6px 10px; border: 2px solid var(--line); border-radius: 8px; }
+
+#pk-results { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow-y: auto; margin-bottom: 10px; }
+.pk-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border: 2px solid var(--line); border-radius: 10px; cursor: pointer;
+}
+.pk-row:hover { border-color: var(--accent); }
+.pk-icon { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: #eceae2; }
+.pk-info { flex: 1; min-width: 0; }
+.pk-title-row { display: flex; align-items: center; gap: 8px; }
+.pk-title { font-weight: bold; font-size: 14px; }
+.pk-dl { font-size: 12px; color: var(--muted); flex-shrink: 0; }
+.pk-desc { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.pk-badges { display: flex; gap: 4px; flex-shrink: 0; }
+#pk-more { width: 100%; }
+
+#pk-pane-file { display: flex; flex-direction: column; gap: 12px; }
+#pk-dropzone { border: 2px dashed var(--line); border-radius: 10px; padding: 30px; text-align: center; color: var(--muted); }
+.pk-drop-hot { border-color: var(--accent); background: rgba(42,157,143,.08); }
+
+#pk-versions-title { margin: 12px 0 8px; }
+#pk-versions-list { display: flex; flex-direction: column; gap: 6px; max-height: 400px; overflow-y: auto; margin-bottom: 12px; }
+
+#pk-name, #pk-port,
+#pkc-loader, #pkc-mc, #pkc-loaderver, #pkc-name, #pkc-port {
+  font-family: inherit; font-size: 14px; padding: 6px 10px;
+  border: 2px solid var(--line); border-radius: 8px; background: #fff;
+}
+#pk-name, #pkc-mc, #pkc-name { flex: 1; }
+#pk-file-info { display: block; margin-top: 4px; }
+#pk-dir, #pkc-dir { font-size: 12px; background: #faf8f3; padding: 5px 9px; border-radius: 6px; flex: 1; word-break: break-all; }
+#pk-log {
+  background: #1e1f24; color: #d7d5ce; border-radius: 8px; padding: 8px 10px;
+  font-size: 11.5px; max-height: 220px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+}
+#pk-log:empty { display: none; }
 
 /* ── トースト ── */
 #toast {
