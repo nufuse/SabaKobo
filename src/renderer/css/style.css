@@ -1,0 +1,239 @@
+/* ── 鯖工房 — 見た目(CmdKobo系の温かい生成り+ダークコンソール) ── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+/* display:flexを持つ要素はhidden属性が効かなくなる(CmdKoboで踏んだ罠)ので明示 */
+#wizard-overlay[hidden], #server-view[hidden], #props-overlay[hidden],
+#remove-overlay[hidden], #player-menu[hidden], #console-row[hidden],
+#mods-overlay[hidden] { display: none; }
+:root {
+  --bg: #f4f1ea;
+  --card: #ffffff;
+  --ink: #33302a;
+  --muted: #8a8578;
+  --line: #e3ded2;
+  --accent: #2a9d8f;       /* 海っぽい青緑(鯖だけに) */
+  --accent-dark: #21867a;
+  --start: #2a9d8f;
+  --stop: #e76f51;
+  --warn: #e9c46a;
+  --err: #d64545;
+}
+html, body { height: 100%; }
+body {
+  font-family: "Yu Gothic UI", "Meiryo", sans-serif;
+  background: var(--bg); color: var(--ink);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── ヘッダー ── */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 18px; border-bottom: 2px solid var(--line); background: var(--card);
+}
+header h1 { font-size: 20px; }
+header h1 span { font-size: 12px; color: var(--muted); font-weight: normal; margin-left: 6px; }
+
+/* ── レイアウト ── */
+.layout { flex: 1; display: flex; min-height: 0; }
+#sidebar {
+  width: 250px; flex-shrink: 0; overflow-y: auto;
+  border-right: 2px solid var(--line); background: #faf8f3; padding: 10px;
+}
+main { flex: 1; display: flex; flex-direction: column; min-width: 0; padding: 14px; }
+
+#placeholder { margin: auto; text-align: center; color: var(--muted); }
+#placeholder p:first-child { font-size: 52px; margin-bottom: 10px; }
+
+/* ── 鯖カード(サイドバー) ── */
+.server-card {
+  background: var(--card); border: 2px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; margin-bottom: 8px; cursor: pointer; transition: border-color .15s;
+}
+.server-card:hover { border-color: var(--accent); }
+.server-card.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(42,157,143,.18); }
+.server-card .sc-name { font-weight: bold; display: flex; align-items: center; gap: 6px; }
+.server-card .sc-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: #c9c4b6; flex-shrink: 0; }
+.dot.running { background: var(--start); }
+.dot.stopping { background: var(--warn); }
+.dot.crashed { background: var(--err); }
+
+/* ── 鯖ビュー ── */
+#server-view { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.server-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 10px; flex-wrap: wrap;
+}
+.sv-badges { margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; }
+.badge {
+  font-size: 12px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 20px; padding: 2px 10px; color: var(--muted);
+}
+.sv-actions { display: flex; align-items: center; gap: 8px; }
+.pill { font-size: 13px; border-radius: 20px; padding: 4px 12px; font-weight: bold; }
+.pill-stopped { background: #eceae2; color: var(--muted); }
+.pill-running { background: rgba(42,157,143,.15); color: var(--accent-dark); }
+.pill-stopping { background: rgba(233,196,106,.25); color: #9c7c1d; }
+.pill-crashed { background: rgba(214,69,69,.12); color: var(--err); }
+
+/* ── コンソール+プレイヤーパネル ── */
+#console-row { flex: 1; min-height: 0; display: flex; gap: 10px; }
+#console-box {
+  flex: 1; min-height: 0; background: #1e1f24; border-radius: 10px;
+  overflow-y: auto; padding: 10px 12px;
+}
+#players-panel {
+  width: 190px; flex-shrink: 0; background: var(--card);
+  border: 2px solid var(--line); border-radius: 10px; padding: 10px;
+  overflow-y: auto; display: flex; flex-direction: column; gap: 6px;
+}
+.pp-head { font-weight: bold; font-size: 13.5px; }
+#pp-count { color: var(--accent-dark); }
+.pp-chip {
+  display: block; width: 100%; text-align: left;
+  font-family: inherit; font-size: 13px; padding: 6px 10px;
+  background: #faf8f3; border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
+}
+.pp-chip:hover { border-color: var(--accent); }
+.pp-note { color: var(--muted); font-size: 12px; }
+
+/* プレイヤー操作メニュー */
+#player-menu {
+  position: fixed; z-index: 80; background: var(--card);
+  border: 2px solid var(--line); border-radius: 10px; padding: 6px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.18); min-width: 200px;
+}
+#pm-name { font-weight: bold; padding: 4px 10px 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+#player-menu button {
+  display: block; width: 100%; text-align: left; font-family: inherit; font-size: 13.5px;
+  padding: 6px 10px; border: none; background: none; border-radius: 6px; cursor: pointer;
+}
+#player-menu button:hover { background: rgba(42,157,143,.12); }
+.pm-sep { font-size: 11px; color: var(--muted); padding: 6px 10px 2px; border-top: 1px solid var(--line); margin-top: 4px; }
+#console-lines { font-family: "Cascadia Mono", Consolas, monospace; font-size: 12.5px; line-height: 1.55; }
+#console-lines div { white-space: pre-wrap; word-break: break-all; color: #d7d5ce; }
+#console-lines .ln-warn { color: #e9c46a; }
+#console-lines .ln-err { color: #ff8f8f; }
+#console-lines .ln-cmd { color: #7fd4c9; }
+#console-lines .ln-app { color: #9a97ff; }
+
+#console-form {
+  display: flex; align-items: center; gap: 8px; margin-top: 8px;
+  background: var(--card); border: 2px solid var(--line); border-radius: 10px; padding: 6px 10px;
+}
+#console-form .prompt { color: var(--muted); font-family: Consolas, monospace; }
+#console-input { flex: 1; border: none; outline: none; font-size: 14px; background: transparent; font-family: "Cascadia Mono", Consolas, monospace; }
+
+/* ── ボタン ── */
+.btn {
+  font-family: inherit; font-size: 14px; padding: 7px 14px; border-radius: 8px;
+  border: 2px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: bold; }
+.btn-primary:hover { background: var(--accent-dark); }
+.btn-start { background: var(--start); border-color: var(--start); color: #fff; font-weight: bold; }
+.btn-stop { background: var(--stop); border-color: var(--stop); color: #fff; font-weight: bold; }
+
+/* ── ウィザード ── */
+#wizard-overlay {
+  position: fixed; inset: 0; background: rgba(40,36,28,.45);
+  display: flex; align-items: center; justify-content: center; z-index: 50;
+}
+#wizard {
+  background: var(--card); border-radius: 14px; padding: 22px 26px;
+  width: 640px; max-width: 92vw; max-height: 88vh; overflow-y: auto;
+}
+#wizard h2 { margin-bottom: 16px; }
+.wz-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.wz-label { width: 88px; flex-shrink: 0; font-weight: bold; font-size: 14px; }
+#wz-loaders { display: flex; gap: 8px; flex: 1; }
+.loader-card {
+  flex: 1; border: 2px solid var(--line); border-radius: 10px; padding: 8px 10px;
+  cursor: pointer; display: flex; gap: 6px; align-items: flex-start;
+}
+.loader-card:has(input:checked) { border-color: var(--accent); background: rgba(42,157,143,.07); }
+.loader-card small { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+.loader-card input { margin-top: 3px; }
+#wizard select, #wizard input[type=text], #wizard input[type=number], #wz-name {
+  font-family: inherit; font-size: 14px; padding: 6px 10px;
+  border: 2px solid var(--line); border-radius: 8px; background: #fff;
+}
+#wz-name { flex: 1; }
+#wz-version { min-width: 160px; }
+#wz-dir { font-size: 12px; background: #faf8f3; padding: 5px 9px; border-radius: 6px; flex: 1; word-break: break-all; }
+.ram-sliders { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+.ram-slider-row { display: flex; align-items: center; gap: 10px; }
+.ram-name { width: 84px; flex-shrink: 0; font-size: 12.5px; color: var(--muted); }
+.ram-slider-row input[type=range] { flex: 1; accent-color: var(--accent); }
+.ram-val { width: 52px; text-align: right; font-size: 13px; font-weight: bold; }
+.eula-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.error { color: var(--err); font-size: 13px; margin-bottom: 10px; }
+.muted { color: var(--muted); font-size: 12.5px; }
+.wz-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+
+/* 進捗 */
+.bar-outer { background: #eceae2; border-radius: 8px; height: 14px; overflow: hidden; margin: 10px 0; }
+.bar-inner { background: var(--accent); height: 100%; width: 0%; transition: width .15s; }
+#wz-log {
+  background: #1e1f24; color: #d7d5ce; border-radius: 8px; padding: 8px 10px;
+  font-size: 11.5px; max-height: 220px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+}
+#wz-log:empty { display: none; }
+
+/* ── サーバー設定モーダル ── */
+#props-overlay, #remove-overlay, #mods-overlay {
+  position: fixed; inset: 0; background: rgba(40,36,28,.45);
+  display: flex; align-items: center; justify-content: center; z-index: 50;
+}
+#props-modal, #remove-modal, #mods-modal {
+  background: var(--card); border-radius: 14px; padding: 22px 26px;
+  width: 640px; max-width: 92vw; max-height: 88vh; overflow-y: auto;
+}
+#props-modal h2, #remove-modal h2, #mods-modal h2 { margin-bottom: 10px; }
+#props-note { margin-bottom: 14px; }
+.pr-row { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; flex-wrap: wrap; }
+.pr-label { width: 230px; flex-shrink: 0; font-size: 13.5px; font-weight: bold; }
+.pr-row select, .pr-row input[type=text], .pr-row input[type=number] {
+  font-family: inherit; font-size: 13.5px; padding: 5px 9px;
+  border: 2px solid var(--line); border-radius: 8px; background: #fff; min-width: 170px;
+}
+.pr-row input[type=text] { flex: 1; }
+.pr-toggle { width: 20px; height: 20px; accent-color: var(--accent); }
+#props-raw-box { margin: 12px 0; }
+#props-raw-box summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.pr-raw-row { display: flex; align-items: center; gap: 10px; margin: 7px 0; }
+.pr-raw-row code { width: 250px; flex-shrink: 0; font-size: 12px; color: var(--muted); word-break: break-all; }
+.pr-raw-row input { flex: 1; font-size: 12.5px; padding: 4px 8px; border: 2px solid var(--line); border-radius: 6px; }
+
+/* ── プラグイン/Modモーダル ── */
+.mm-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.pill-dirty { background: rgba(233,196,106,.25); color: #9c7c1d; } /* pill-stoppingと同系色(=要注意) */
+#mm-sub { margin-bottom: 12px; }
+#mm-drop {
+  border: 2px dashed var(--line); border-radius: 10px; padding: 8px;
+  min-height: 90px; margin-bottom: 10px;
+}
+.mm-drop-hot { border-color: var(--accent); background: rgba(42,157,143,.08); } /* ドラッグ中の枠強調 */
+.mm-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 6px; border-bottom: 1px solid var(--line);
+}
+.mm-row:last-child { border-bottom: none; }
+.mm-name { flex: 1; font-size: 13.5px; word-break: break-all; }
+.mm-size { width: 70px; text-align: right; font-size: 12px; color: var(--muted); }
+
+/* 削除モーダル */
+#rm-dir { margin-bottom: 14px; word-break: break-all; }
+.rm-choices { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.rm-choices .btn { text-align: left; padding: 12px 14px; }
+.rm-choices .btn small { display: block; color: var(--muted); font-weight: normal; margin-top: 3px; }
+.rm-danger:hover { border-color: var(--stop); }
+
+/* ── トースト ── */
+#toast {
+  position: fixed; right: 18px; bottom: 18px; z-index: 99;
+  background: #33302a; color: #fff; border-radius: 10px; padding: 10px 16px;
+  font-size: 14px; box-shadow: 0 4px 14px rgba(0,0,0,.25);
+}

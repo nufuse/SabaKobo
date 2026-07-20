@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>鯖工房</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>🐟 鯖工房 <span id="app-version"></span></h1>
+    <div class="header-actions">
+      <button id="btn-new" class="btn btn-primary">➕ 新しい鯖</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside id="sidebar">
+      <div id="server-list"></div>
+      <p id="list-empty" class="muted" hidden>まだ鯖がありません。<br>「➕ 新しい鯖」から作れます。</p>
+    </aside>
+
+    <main>
+      <div id="placeholder">
+        <p>🐟</p>
+        <p>左の一覧から鯖を選ぶか、新しく作ってください</p>
+      </div>
+
+      <section id="server-view" hidden>
+        <div class="server-head">
+          <div class="sv-titles">
+            <h2 id="sv-name"></h2>
+            <div class="sv-badges">
+              <span class="badge" id="sv-loader"></span>
+              <span class="badge" id="sv-mc"></span>
+              <span class="badge" id="sv-java"></span>
+              <span class="badge" id="sv-port"></span>
+            </div>
+          </div>
+          <div class="sv-actions">
+            <span id="sv-status" class="pill pill-stopped">停止中</span>
+            <button id="btn-start" class="btn btn-start">▶ 起動</button>
+            <button id="btn-stop" class="btn btn-stop" hidden>■ 停止</button>
+            <button id="btn-props" class="btn" title="サーバー設定(server.properties)">⚙</button>
+            <button id="btn-mods" class="btn" title="プラグイン/Mod">🧩</button>
+            <button id="btn-folder" class="btn" title="フォルダを開く">📁</button>
+            <button id="btn-remove" class="btn" title="削除">🗑</button>
+          </div>
+        </div>
+
+        <div id="console-row">
+          <div id="console-box">
+            <div id="console-lines"></div>
+          </div>
+          <aside id="players-panel">
+            <div class="pp-head">👥 プレイヤー <span id="pp-count">0</span></div>
+            <div id="pp-list"></div>
+            <p id="pp-empty" class="pp-note">まだ誰もいません</p>
+          </aside>
+        </div>
+        <form id="console-form" autocomplete="off">
+          <span class="prompt">&gt;</span>
+          <input id="console-input" placeholder="コマンドを入力(例: list / say こんにちは / op プレイヤー名)" disabled>
+          <button type="submit" class="btn" id="console-send" disabled>送信</button>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <!-- 作成ウィザード -->
+  <div id="wizard-overlay" hidden>
+    <div id="wizard">
+      <h2>🛠 新しい鯖を作る</h2>
+
+      <div id="wz-form">
+        <div class="wz-row">
+          <label class="wz-label">種類</label>
+          <div id="wz-loaders">
+            <label class="loader-card"><input type="radio" name="wz-loader" value="paper" checked>
+              <span><b>Paper</b><small>プラグイン鯖。軽くて定番</small></span></label>
+            <label class="loader-card"><input type="radio" name="wz-loader" value="fabric">
+              <span><b>Fabric</b><small>Mod鯖(軽量系)</small></span></label>
+            <label class="loader-card"><input type="radio" name="wz-loader" value="forge">
+              <span><b>Forge</b><small>Mod鯖(老舗)</small></span></label>
+            <label class="loader-card"><input type="radio" name="wz-loader" value="vanilla">
+              <span><b>Vanilla</b><small>公式そのまま</small></span></label>
+          </div>
+        </div>
+
+        <div class="wz-row">
+          <label class="wz-label" for="wz-version">バージョン</label>
+          <select id="wz-version"><option>読み込み中…</option></select>
+          <span id="wz-loader-note" class="muted"></span>
+        </div>
+
+        <div class="wz-row">
+          <label class="wz-label" for="wz-name">名前</label>
+          <input id="wz-name" placeholder="例: 冒険サーバー">
+        </div>
+
+        <div class="wz-row">
+          <label class="wz-label">作成先</label>
+          <code id="wz-dir">—</code>
+          <button type="button" class="btn" id="wz-dir-btn">親フォルダを変更</button>
+        </div>
+
+        <div class="wz-row">
+          <label class="wz-label">メモリ</label>
+          <div class="ram-sliders">
+            <div class="ram-slider-row">
+              <span class="ram-name">最低 -Xms</span>
+              <input type="range" id="wz-xms" min="1" max="16" step="1" value="2">
+              <span class="ram-val" id="wz-xms-val">2 GB</span>
+            </div>
+            <div class="ram-slider-row">
+              <span class="ram-name">上限 -Xmx</span>
+              <input type="range" id="wz-xmx" min="1" max="16" step="1" value="4">
+              <span class="ram-val" id="wz-xmx-val">4 GB</span>
+            </div>
+            <span class="muted" id="wz-ram-hint"></span>
+          </div>
+        </div>
+
+        <div class="wz-row">
+          <label class="wz-label" for="wz-port">ポート</label>
+          <input id="wz-port" type="number" min="1" max="65535" style="width:90px">
+        </div>
+
+        <div class="wz-row">
+          <label class="wz-label">Java</label>
+          <span id="wz-java-note" class="muted">—</span>
+        </div>
+
+        <div class="wz-row">
+          <label class="eula-row">
+            <input type="checkbox" id="wz-eula">
+            <span><a href="#" id="wz-eula-link">Minecraft EULA</a> に同意する(サーバー運用に必須)</span>
+          </label>
+        </div>
+
+        <p id="wz-error" class="error" hidden></p>
+
+        <div class="wz-buttons">
+          <button class="btn btn-primary" id="wz-create">作成</button>
+          <button class="btn" id="wz-close">閉じる</button>
+        </div>
+      </div>
+
+      <div id="wz-progress" hidden>
+        <p id="wz-phase">準備中…</p>
+        <div class="bar-outer"><div class="bar-inner" id="wz-bar"></div></div>
+        <pre id="wz-log"></pre>
+        <div class="wz-buttons">
+          <button class="btn" id="wz-abort">中止</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- プレイヤー操作メニュー(チップをクリックで出る) -->
+  <div id="player-menu" hidden>
+    <div id="pm-name"></div>
+    <button data-act="op">⭐ OPにする</button>
+    <button data-act="deop">☆ OPを外す</button>
+    <button data-act="kick">🥾 キック</button>
+    <button data-act="ban">🚫 BAN</button>
+    <button data-act="whitelist">📋 ホワイトリストに追加</button>
+    <div class="pm-sep">ゲームモード変更</div>
+    <button data-act="gm-survival">⚔ サバイバル</button>
+    <button data-act="gm-creative">🧱 クリエイティブ</button>
+    <button data-act="gm-spectator">👻 スペクテイター</button>
+  </div>
+
+  <!-- サーバー設定(server.properties)モーダル -->
+  <div id="props-overlay" hidden>
+    <div id="props-modal">
+      <h2>⚙ サーバー設定 <span id="props-name" class="muted"></span></h2>
+      <p id="props-note" class="muted"></p>
+      <div id="props-form"></div>
+      <details id="props-raw-box">
+        <summary>その他の設定(上級者向け)</summary>
+        <div id="props-raw"></div>
+      </details>
+      <p id="props-error" class="error" hidden></p>
+      <div class="wz-buttons">
+        <button class="btn btn-primary" id="props-save">保存</button>
+        <button class="btn" id="props-close">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- プラグイン/Mod管理モーダル -->
+  <div id="mods-overlay" hidden>
+    <div id="mods-modal">
+      <div class="mm-head">
+        <h2>🧩 プラグイン/Mod <span id="mm-name" class="muted"></span></h2>
+        <span id="mm-restart" class="pill pill-dirty" hidden>⟳ 要再起動</span>
+      </div>
+      <p id="mm-sub" class="muted"></p>
+      <div id="mm-drop">
+        <div id="mm-list"></div>
+        <p id="mm-empty" class="muted" hidden>まだ何もありません</p>
+      </div>
+      <p id="mm-skip" class="error" hidden></p>
+      <div class="wz-buttons">
+        <button class="btn btn-primary" id="mm-add">＋ jarを追加</button>
+        <button class="btn" id="mods-close">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 削除確認モーダル -->
+  <div id="remove-overlay" hidden>
+    <div id="remove-modal">
+      <h2>🗑 「<span id="rm-name"></span>」を削除</h2>
+      <p class="muted" id="rm-dir"></p>
+      <div class="rm-choices">
+        <button class="btn" id="rm-unregister">一覧から外す<small>フォルダとワールドはそのまま残す</small></button>
+        <button class="btn rm-danger" id="rm-trash">フォルダごとゴミ箱へ<small>ワールドも含めてゴミ箱に移動(復元可能)</small></button>
+      </div>
+      <div class="wz-buttons">
+        <button class="btn" id="rm-cancel">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" hidden></div>
+
+  <script src="js/app.js"></script>
+  <script src="js/list.js"></script>
+  <script src="js/console.js"></script>
+  <script src="js/wizard.js"></script>
+  <script src="js/players.js"></script>
+  <script src="js/props.js"></script>
+  <script src="js/mods.js"></script>
+  <script>App.boot();</script>
+</body>
+</html>
