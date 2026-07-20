@@ -6,6 +6,7 @@
 
 const Mods = {
   current: null, /* 直近のmods:list結果 {folder, mods, dirty} */
+  delConfirm: null, /* 削除2段階クリックの確認中ボタン {btn, timer} */
 
   wire() {
     document.querySelector('#mods-close').addEventListener('click', () => Mods.close());
@@ -13,6 +14,14 @@ const Mods = {
     document.querySelector('#mm-list').addEventListener('change', e => {
       const cb = e.target.closest('input[type=checkbox]');
       if (cb) Mods.toggle(cb.dataset.name, cb.checked);
+    });
+    document.querySelector('#mm-list').addEventListener('click', e => {
+      const del = e.target.closest('.mm-del');
+      if (del) Mods.onDeleteClick(del);
+    });
+    /* 確認中のボタン以外をクリックしたら3秒待たずに元へ戻す */
+    document.addEventListener('click', e => {
+      if (Mods.delConfirm && !e.target.closest('.mm-del-confirm')) Mods.resetDeleteConfirm();
     });
 
     /* ドラッグ&ドロップ: File.pathがElectron 43で廃止されたのでsaba.pathForFileでパス化する */
@@ -84,9 +93,18 @@ const Mods = {
       toggle.dataset.name = mod.name;
       toggle.title = mod.enabled ? '有効(クリックで無効化)' : '無効(クリックで有効化)';
 
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'mm-del';
+      del.textContent = '🗑';
+      del.title = 'ゴミ箱へ移動(復元可能)';
+      del.dataset.name = mod.name;
+      del.dataset.enabled = String(mod.enabled);
+
       row.appendChild(name);
       row.appendChild(size);
       row.appendChild(toggle);
+      row.appendChild(del);
       list.appendChild(row);
     }
     document.querySelector('#mm-empty').hidden = r.mods.length > 0;
@@ -101,6 +119,35 @@ const Mods = {
   async toggle(name, enabled) {
     const id = App.state.activeId;
     const r = await saba.modsToggle(id, name, enabled);
+    /* 成功時の再読み込みはmods:changedイベント側に任せる(二重リロード防止)。失敗時は表示のズレを直す */
+    if (!r.ok) { App.toast('⚠ ' + r.error); await Mods.reload(); }
+  },
+
+  /* 削除ボタンは2段階クリック(誤爆防止): 1回目で「ゴミ箱へ?」に変わり、3秒以内の2回目で実行 */
+  onDeleteClick(btn) {
+    if (Mods.delConfirm && Mods.delConfirm.btn === btn) {
+      Mods.resetDeleteConfirm();
+      Mods.remove(btn.dataset.name, btn.dataset.enabled === 'true');
+      return;
+    }
+    Mods.resetDeleteConfirm(); /* 別の行が確認中だったら戻す */
+    btn.classList.add('mm-del-confirm');
+    btn.textContent = 'ゴミ箱へ?';
+    const timer = setTimeout(() => Mods.resetDeleteConfirm(), 3000);
+    Mods.delConfirm = { btn, timer };
+  },
+
+  resetDeleteConfirm() {
+    if (!Mods.delConfirm) return;
+    clearTimeout(Mods.delConfirm.timer);
+    Mods.delConfirm.btn.classList.remove('mm-del-confirm');
+    Mods.delConfirm.btn.textContent = '🗑';
+    Mods.delConfirm = null;
+  },
+
+  async remove(name, enabled) {
+    const id = App.state.activeId;
+    const r = await saba.modsRemove(id, name, enabled);
     /* 成功時の再読み込みはmods:changedイベント側に任せる(二重リロード防止)。失敗時は表示のズレを直す */
     if (!r.ok) { App.toast('⚠ ' + r.error); await Mods.reload(); }
   },

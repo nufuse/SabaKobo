@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('saba', {
   modsList: (id) => ipcRenderer.invoke('mods:list', id),
   modsToggle: (id, name, enabled) => ipcRenderer.invoke('mods:toggle', id, name, enabled),
   modsAdd: (id, paths) => ipcRenderer.invoke('mods:add', id, paths),
+  modsRemove: (id, name, enabled) => ipcRenderer.invoke('mods:remove', id, name, enabled),
   pickJars: () => ipcRenderer.invoke('dialog:pick-jars'),
   /* ドラッグ&ドロップのパス取得。Electron 43でFile.pathが廃止されたため、これが唯一の方法 */
   pathForFile: (file) => webUtils.getPathForFile(file),

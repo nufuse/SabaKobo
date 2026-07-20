@@ -18,6 +18,7 @@ function folderFor(server) {
 /* ── 要再起動フラグ(起動中に変更した鯖のid) ── */
 const dirty = new Set();
 function clearDirty(id) { dirty.delete(id); }
+function markDirty(id) { dirty.add(id); }
 
 /* ── 安全弁(パス脱出防止) ─────────────── */
 function assertSafeName(name) {
@@ -81,6 +82,19 @@ function setEnabled(server, name, enabled, running) {
   if (running) dirty.add(server.id);
 }
 
+/* ── 削除用パス解決(setEnabledの安全弁と同じ: 存在確認+通常ファイル判定) ── */
+function resolveModPath(server, name, enabled) {
+  assertSafeName(name);
+  const folder = folderFor(server);
+  if (!folder) throw new Error('このサーバーにはプラグイン/Modの概念がありません');
+  const base = path.join(server.dir, folder);
+  const p = enabled ? path.join(base, name) : path.join(base, 'disabled', name + '.disabled');
+  let st;
+  try { st = fs.statSync(p); } catch (err) { throw translateFsError(err); }
+  if (!st.isFile()) throw new Error(`通常のファイルではありません: ${path.basename(p)}`); /* 同名ディレクトリを丸ごとゴミ箱へ送らない安全弁 */
+  return p;
+}
+
 /* ── 追加(コピー。同名は理由付きでスキップし、黙って捨てない) ── */
 function addMods(server, paths, running) {
   const folder = folderFor(server);
@@ -111,4 +125,4 @@ function addMods(server, paths, running) {
   return { added, skipped };
 }
 
-module.exports = { folderFor, listMods, setEnabled, addMods, clearDirty };
+module.exports = { folderFor, listMods, setEnabled, addMods, resolveModPath, clearDirty, markDirty, translateFsError };

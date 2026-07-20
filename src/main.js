@@ -218,6 +218,25 @@ ipcMain.handle('mods:add', (e, id, paths) => {
   }
 });
 
+/* 削除。完全削除はしない(鯖本体と同じ流儀=shell.trashItemでゴミ箱へ。復元可能) */
+ipcMain.handle('mods:remove', async (e, id, name, enabled) => {
+  const s = findServer(id);
+  if (!s) return { ok: false, error: '不明なサーバーです' };
+  try {
+    const p = mods.resolveModPath(s, name, !!enabled);
+    try {
+      await shell.trashItem(p);
+    } catch (err) {
+      throw mods.translateFsError(err);
+    }
+    if (runner.isRunning(id)) mods.markDirty(id);
+    if (win && !win.isDestroyed()) win.webContents.send('mods:changed', { id });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 /* ── IPC: 作成ウィザード ─────────────── */
 ipcMain.handle('create:versions', async (e, loader) => {
   try {

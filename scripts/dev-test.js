@@ -220,6 +220,18 @@ function check(label, actual, expected) {
     check('modsAddで新規New.jarはaddedに入る', addNewRes, v => v.ok && v.added.includes('New.jar'));
     check('New.jarが実ファイルとしてplugins直下にコピーされている', fs.existsSync(path.join(pluginsDir, 'New.jar')), true);
 
+    /* 削除(mods:remove): 完全削除ではなくゴミ箱送りなので、実ファイルが消えたことだけ見ればよい */
+    const removeEnabled = await evaluate(`saba.modsRemove('${modsServer.id}', 'B.jar', true)`);
+    check('有効なB.jarの削除', removeEnabled, v => v.ok === true);
+    check('B.jarがplugins直下から消えている', fs.existsSync(path.join(pluginsDir, 'B.jar')), false);
+
+    const removeDisabled = await evaluate(`saba.modsRemove('${modsServer.id}', 'C.jar', false)`);
+    check('無効なC.jarの削除', removeDisabled, v => v.ok === true);
+    check('C.jar.disabledがdisabled\\から消えている', fs.existsSync(path.join(disabledDir, 'C.jar.disabled')), false);
+
+    const badRemove = await evaluate(`saba.modsRemove('${modsServer.id}', ${JSON.stringify(badName)}, false)`);
+    check('不正名(..\\evil.jar)の削除はエラー', badRemove, v => v.ok === false);
+
     vanillaServer = await evaluate(`saba.devRegister({ name: 'Vanillaテスト', dir: ${JSON.stringify(vanillaDir)}, loader: 'vanilla', port: 25597 })`);
     const vanillaList = await evaluate(`saba.modsList('${vanillaServer.id}')`);
     check('vanilla鯖ではfolderがnull', vanillaList, v => v.ok && v.folder === null);
